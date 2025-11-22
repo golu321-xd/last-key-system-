@@ -11,6 +11,7 @@ keys = {}
 def home():
     return "Rayfield Key System Working!"
 
+# Endpoint to generate a key
 @app.route("/key")
 def generate_key():
     generated_key = str(uuid.uuid4())
@@ -25,6 +26,20 @@ def generate_key():
         "expires_in": "48 hours"
     })
 
+# ✅ New verify endpoint for Rayfield
+@app.route("/verify")
+def verify_key():
+    key = request.args.get("key")
+
+    if key not in keys:
+        return "INVALID"  # Simple text response for Rayfield
+
+    if datetime.utcnow() > keys[key]["expires"]:
+        return "INVALID"
+
+    return "VALID"  # Key exists and not expired
+
+# Optional: Original validate endpoint
 @app.route("/validate", methods=["GET"])
 def validate_key():
     key = request.args.get("key")
@@ -36,3 +51,6 @@ def validate_key():
         return jsonify({"valid": False, "msg": "Key expired"}), 403
 
     return jsonify({"valid": True, "msg": "Key valid"}), 200
+
+if __name__ == "__main__":
+    app.run()
