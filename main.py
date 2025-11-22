@@ -1,51 +1,38 @@
 from flask import Flask, request, jsonify
-import json, time, uuid, os
+from datetime import datetime, timedelta
+import uuid
 
 app = Flask(__name__)
 
-FILE = "keys.json"
+# Key storage
+keys = {}
 
-def load():
-    if not os.path.exists(FILE):
-        return {}
-    with open(FILE, "r") as f:
-        return json.load(f)
+@app.route("/")
+def home():
+    return "Rayfield Key System Working!"
 
-def save(data):
-    with open(FILE, "w") as f:
-        json.dump(data, f, indent=4)
+@app.route("/key")
+def generate_key():
+    generated_key = str(uuid.uuid4())
 
-@app.route("/generate", methods=["POST"])
-def generate():
-    data = load()
-    player = request.json.get("player_id")
+    keys[generated_key] = {
+        "expires": datetime.utcnow() + timedelta(hours=48)  # 48 hours validity
+    }
 
-    if player in data and data[player]["expires"] > time.time():
-        return jsonify({"key": data[player]["key"]})
+    return jsonify({
+        "status": "success",
+        "key": generated_key,
+        "expires_in": "48 hours"
+    })
 
-    new = str(uuid.uuid4())
-    expires = time.time() + 48 * 3600
+@app.route("/validate", methods=["GET"])
+def validate_key():
+    key = request.args.get("key")
 
-    data[player] = {"key": new, "expires": expires}
-    save(data)
+    if key not in keys:
+        return jsonify({"valid": False, "msg": "Key not found"}), 404
 
-    return jsonify({"key": new})
+    if datetime.utcnow() > keys[key]["expires"]:
+        return jsonify({"valid": False, "msg": "Key expired"}), 403
 
-@app.route("/verify", methods=["POST"])
-def verify():
-    data = load()
-    player = request.json.get("player_id")
-    key = request.json.get("key")
-
-    if player not in data:
-        return jsonify({"success": False, "msg": "Key not generated"})
-
-    saved = data[player]
-
-    if saved["key"] != key:
-        return jsonify({"success": False, "msg": "Wrong key"})
-
-    if saved["expires"] < time.time():
-        return jsonify({"success": False, "msg": "Key expired"})
-
-    return jsonify({"success": True})
+    return jsonify({"valid": True, "msg": "Key valid"}), 200
